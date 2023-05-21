@@ -9,19 +9,61 @@ import {
 
 import { BaiJamjuree_700Bold } from '@expo-google-fonts/bai-jamjuree'
 
-import bgBlur from './src/assets/bg-blur.png'
-import Stripes from './src/assets/stripes.svg'
-import NLWLogo from './src/assets/nlw-spacetime-logo.svg'
+import bgBlur from '../src/assets/bg-blur.png'
+import Stripes from '../src/assets/stripes.svg'
+import NLWLogo from '../src/assets/nlw-spacetime-logo.svg'
 import { styled } from 'nativewind'
+import { useAuthRequest, makeRedirectUri } from 'expo-auth-session'
+import { useEffect } from 'react'
+import { api } from '../src/lib/api'
+import * as SecureStore from 'expo-secure-store'
+import { useRouter } from 'expo-router'
 
 const StyledStripes = styled(Stripes)
 
+const discovery = {
+  authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+  tokenEndpoint: 'https://github.com/login/oauth/access_token',
+  revocationEndpoint:
+    'https://github.com/settings/connections/applications/3fa6c0eeda5140f4818d',
+}
+
 export default function App() {
+  const router = useRouter()
   const [hasLoadedFonts] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
     BaiJamjuree_700Bold,
   })
+
+  const [request, response, signInWithGithub] = useAuthRequest(
+    {
+      clientId: '3fa6c0eeda5140f4818d',
+      scopes: ['identity'],
+      redirectUri: makeRedirectUri({
+        scheme: 'nlwspacetime',
+      }),
+    },
+    discovery,
+  )
+
+  async function handleGithubOAuthCode(code: string) {
+    const response = await api.post('/register', {
+      code,
+    })
+    const { token } = response.data
+
+    await SecureStore.setItemAsync('token', token)
+
+    router.push('/memories')
+  }
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params
+      handleGithubOAuthCode(code)
+    }
+  }, [response])
 
   if (!hasLoadedFonts) {
     return null
@@ -48,7 +90,10 @@ export default function App() {
           </Text>
         </View>
 
-        <TouchableOpacity className="rounded-full bg-green-500 px-5 py-2">
+        <TouchableOpacity
+          className="rounded-full bg-green-500 px-5 py-2"
+          onPress={() => signInWithGithub()}
+        >
           <Text className="font-alt text-sm uppercase text-black">
             Cadastrar Lembrança
           </Text>
